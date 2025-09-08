@@ -177,10 +177,10 @@ uv run pytest -k "integration" -v
 
 ```bash
 # Build the image
-podman build -t jira-scrum-master .
+docker build -t jira-scrum-master .
 
 # Run the container
-podman run -p 8000:8000 \
+docker run -p 8000:8000 \
   -e JIRA_URL=https://your-company.atlassian.net \
   -e JIRA_USERNAME=your.email@company.com \
   -e JIRA_TOKEN=your_token \
