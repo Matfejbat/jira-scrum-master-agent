@@ -1,0 +1,52 @@
+[project]
+name = "beeai-jira-scrum-master"
+version = "1.0.0"
+description = "AI Scrum Master with BeeAI Platform and Jira MCP integration"
+authors = [
+    {name = "Matfej", email = "matfej@example.com"}
+]
+readme = "README.md"
+license = {text = "Apache-2.0"}
+requires-python = ">=3.11"
+
+dependencies = [
+    "beeai-sdk>=0.1.0",
+    "mcp>=1.0.0",
+    "uvicorn>=0.24.0",
+    "pydantic>=2.0.0",
+    "python-dotenv>=1.0.0",
+    "aiohttp>=3.8.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "mypy>=1.0.0"
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.black]
+line-length = 88
+target-version = ['py311']
+
+[tool.isort]
+profile = "black"
+line_length = 88
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "--cov=src --cov-report=xml --cov-report=term"
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
