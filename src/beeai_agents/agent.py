@@ -11,13 +11,16 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 from contextlib import asynccontextmanager
 
-# BeeAI Platform imports (from template)
-from beeai_sdk import server, Context, Message, AgentMessage
+# BeeAI Platform imports (from templatserver = Server()e)
+from beeai_sdk.server import Server
+from beeai_sdk.server.context import Context
+from a2a.types import Message
+from beeai_sdk.a2a.types import AgentMessage
 from beeai_sdk.utils.message import get_message_text
 from beeai_sdk.models import PlatformUIAnnotation, PlatformUIType, AgentToolInfo
 
 # MCP imports for Jira integration
-from mcp import ClientSession, StdioServerParameters
+from mcp import ClientSession, StdioParameters
 from mcp.client.stdio import stdio_client
 
 # Configure logging
