@@ -1,6 +1,5 @@
 """
 BeeAI Platform Jira Scrum Master Agent
-Adapted to use the BeeAI Platform Agent Starter template structure
 """
 
 import os
@@ -11,7 +10,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 from contextlib import asynccontextmanager
 
-# BeeAI Platform imports (from templatserver = Server()e)
+# BeeAI Platform imports
 from beeai_sdk.server import Server
 from beeai_sdk.server.context import Context
 from a2a.types import Message
@@ -19,11 +18,9 @@ from beeai_sdk.a2a.types import AgentMessage
 from beeai_sdk.utils.message import get_message_text
 from beeai_sdk.models import PlatformUIAnnotation, PlatformUIType, AgentToolInfo
 
-server = Server()
-app = server.app
-
 # MCP imports for Jira integration
-from mcp import ClientSession, StdioParameters
+from mcp import ClientSession
+from mcp.types import StdioServerParameters
 from mcp.client.stdio import stdio_client
 
 # Configure logging
@@ -37,34 +34,32 @@ jira_mcp_client: Optional[ClientSession] = None
 async def lifespan(app):
     """Application lifespan manager for MCP connections"""
     global jira_mcp_client
-    
-    # Startup: Initialize Jira MCP connection
+
     try:
         jira_url = os.getenv("JIRA_URL", "https://your-company.atlassian.net")
         jira_username = os.getenv("JIRA_USERNAME", "your.email@company.com")
         jira_token = os.getenv("JIRA_TOKEN", "your_api_token")
-        
+
         server_params = StdioServerParameters(
             command="uvx",
             args=[
                 "mcp-atlassian",
                 f"--jira-url={jira_url}",
                 f"--jira-username={jira_username}",
-                f"--jira-token={jira_token}"
-            ]
+                f"--jira-token={jira_token}",
+            ],
         )
-        
+
         jira_mcp_client = await stdio_client(server_params)
         await jira_mcp_client.__aenter__()
         logger.info("Connected to Jira MCP server successfully")
-        
+
     except Exception as e:
         logger.error(f"Failed to connect to Jira MCP: {e}")
         jira_mcp_client = None
-    
+
     yield
-    
-    # Shutdown: Cleanup MCP connections
+
     if jira_mcp_client:
         try:
             await jira_mcp_client.__aexit__(None, None, None)
@@ -74,6 +69,7 @@ async def lifespan(app):
 
 # Initialize the server with lifespan
 server = Server(lifespan=lifespan)
+app = server.app
 
 async def call_jira_mcp(tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
     """Helper function to call Jira MCP tools"""
