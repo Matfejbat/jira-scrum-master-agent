@@ -19,6 +19,9 @@ from beeai_sdk.a2a.types import AgentMessage
 from beeai_sdk.utils.message import get_message_text
 from beeai_sdk.models import PlatformUIAnnotation, PlatformUIType, AgentToolInfo
 
+server = Server()
+app = server.app
+
 # MCP imports for Jira integration
 from mcp import ClientSession, StdioParameters
 from mcp.client.stdio import stdio_client
@@ -70,7 +73,7 @@ async def lifespan(app):
             logger.error(f"Error cleaning up Jira MCP: {e}")
 
 # Initialize the server with lifespan
-server = server.Server(lifespan=lifespan)
+server = Server(lifespan=lifespan)
 
 async def call_jira_mcp(tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
     """Helper function to call Jira MCP tools"""
