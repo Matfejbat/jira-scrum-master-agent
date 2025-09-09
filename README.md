@@ -25,6 +25,8 @@ This agent leverages:
 - **MCP (Model Context Protocol)** for direct Jira integration via `mcp-atlassian`
 - **Multi-agent Architecture** with specialized agents for different Scrum functions
 
+📋 **[View Detailed Architecture Documentation](docs/ARCHITECTURE.md)** - Complete ArchiMate diagram and technical architecture details
+
 ## 🛠️ Quick Start
 
 ### Prerequisites
@@ -224,6 +226,9 @@ jira-scrum-master-agent/
 │   └── agent.py                # BeeAI agent implementation
 ├── tests/                      # Test suite
 │   └── test_agent.py          # Agent tests
+├── docs/                       # Documentation
+│   ├── ARCHITECTURE.md        # Detailed architecture docs
+│   └── architecture.puml      # ArchiMate PlantUML diagram
 ├── .github/workflows/          # CI/CD pipelines
 │   └── ci-cd.yml              # Main CI/CD workflow
 ├── Dockerfile                  # Container configuration
