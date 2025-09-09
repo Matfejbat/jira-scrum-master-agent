@@ -1,0 +1,123 @@
+@startuml BeeAI_Jira_Scrum_Master_Agent_Architecture
+!define BUSINESS_COLOR #E8F5E8
+!define APPLICATION_COLOR #E8F0FF
+!define TECHNOLOGY_COLOR #FFF8E8
+!define PHYSICAL_COLOR #F0F8F0
+!define MOTIVATION_COLOR #FFE8F0
+!define STRATEGY_COLOR #F8E8FF
+!define IMPLEMENTATION_COLOR #E8FFE8
+
+title BeeAI Jira Scrum Master Agent Architecture
+
+' Business Layer
+package "Business Layer" as business_layer <<Business>> #BUSINESS_COLOR {
+  actor "Scrum Master" as scrum_master <<Business_Role>>
+  actor "Development Team" as dev_team <<Business_Actor>>
+  actor "Product Owner" as product_owner <<Business_Actor>>
+  
+  rectangle "Sprint Management" as sprint_mgmt <<Business_Process>>
+  rectangle "Daily Standup" as daily_standup <<Business_Process>>
+  rectangle "Impediment Resolution" as impediment_resolution <<Business_Process>>
+  rectangle "Velocity Tracking" as velocity_tracking <<Business_Process>>
+}
+
+' Application Layer
+package "Application Layer" as application_layer <<Application>> #APPLICATION_COLOR {
+  rectangle "BeeAI Jira Scrum Master Agent" as main_agent <<Application_Component>>
+  rectangle "Sprint Health Analyzer" as sprint_analyzer <<Application_Component>>
+  rectangle "Velocity Tracker" as velocity_tracker_app <<Application_Component>>
+  rectangle "Standup Facilitator" as standup_facilitator <<Application_Component>>
+  rectangle "Impediment Manager" as impediment_manager <<Application_Component>>
+  
+  rectangle "BeeAI Platform SDK" as beeai_sdk <<Application_Component>>
+  rectangle "MCP Client" as mcp_client <<Application_Component>>
+  rectangle "Jira Cloud/Server" as jira_system <<Application_Component>>
+  rectangle "BeeAI Platform" as beeai_platform <<Application_Component>>
+}
+
+' Technology Layer
+package "Technology Layer" as technology_layer <<Technology>> #TECHNOLOGY_COLOR {
+  rectangle "FastAPI/Uvicorn Server" as fastapi_server <<System_Software>>
+  rectangle "Python Runtime" as python_runtime <<System_Software>>
+  rectangle "Docker Container" as docker_container <<System_Software>>
+  
+  interface "Jira REST API" as jira_api <<Technology_Interface>>
+  node "GitHub Container Registry" as container_registry <<Node>>
+  node "Kubernetes Cluster" as kubernetes_cluster <<Node>>
+}
+
+' Physical Layer
+package "Physical Layer" as physical_layer <<Physical>> #PHYSICAL_COLOR {
+  rectangle "Docker Infrastructure" as docker_infra <<Equipment>>
+}
+
+' Motivation Layer
+package "Motivation Layer" as motivation_layer <<Motivation>> #MOTIVATION_COLOR {
+  rectangle "Automate Scrum Master Activities" as automate_scrum_goal <<Goal>>
+  rectangle "Real-time Sprint Monitoring" as realtime_monitoring_req <<Requirement>>
+  rectangle "Automated Impediment Detection" as impediment_detection_req <<Requirement>>
+}
+
+' Strategy Layer
+package "Strategy Layer" as strategy_layer <<Strategy>> #STRATEGY_COLOR {
+  rectangle "Sprint Analytics" as sprint_analytics_capability <<Capability>>
+  rectangle "Velocity Analytics" as velocity_analytics_capability <<Capability>>
+  rectangle "Automated Reporting" as automated_reporting_capability <<Capability>>
+}
+
+' Implementation Layer
+package "Implementation Layer" as implementation_layer <<Implementation>> #IMPLEMENTATION_COLOR {
+  rectangle "CI/CD Pipeline" as ci_cd_pipeline <<Work_Package>>
+}
+
+' Business Layer Relationships
+scrum_master -down-> sprint_mgmt : facilitates
+scrum_master -down-> daily_standup : coordinates
+scrum_master -down-> impediment_resolution : manages
+dev_team -up-> daily_standup : participates
+dev_team -up-> sprint_mgmt : executes
+product_owner -down-> sprint_mgmt : defines requirements
+
+' Business to Application Relationships
+main_agent .up.> sprint_mgmt : automates
+main_agent .up.> daily_standup : facilitates
+main_agent .up.> impediment_resolution : assists
+main_agent .up.> velocity_tracking : monitors
+
+' Application Layer Relationships
+sprint_analyzer -up-> main_agent : composition
+velocity_tracker_app -up-> main_agent : composition
+standup_facilitator -up-> main_agent : composition
+impediment_manager -up-> main_agent : composition
+
+main_agent -right-> beeai_sdk : uses
+main_agent -right-> mcp_client : uses
+mcp_client -right-> jira_api : accesses
+jira_api -right-> jira_system : serves
+beeai_sdk -right-> beeai_platform : accesses
+
+' Application to Technology Relationships
+main_agent -down-> fastapi_server : deployed on
+fastapi_server -down-> python_runtime : runs on
+python_runtime -down-> docker_container : containerized in
+docker_container -right-> container_registry : stored in
+docker_container -down-> kubernetes_cluster : orchestrated by
+
+' Technology to Physical Relationships
+kubernetes_cluster -down-> docker_infra : deployed on
+
+' Implementation Relationships
+ci_cd_pipeline -up-> main_agent : builds & deploys
+ci_cd_pipeline -right-> container_registry : pushes to
+
+' Motivation to Application Relationships
+automate_scrum_goal .up.> main_agent : realized by
+realtime_monitoring_req .up.> sprint_analyzer : realized by
+impediment_detection_req .up.> impediment_manager : realized by
+
+' Strategy to Application Relationships
+sprint_analytics_capability .up.> sprint_analyzer : realized by
+velocity_analytics_capability .up.> velocity_tracker_app : realized by
+automated_reporting_capability .up.> standup_facilitator : realized by
+
+@enduml
