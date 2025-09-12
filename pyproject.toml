@@ -1,21 +1,35 @@
 [project]
 name = "beeai-jira-scrum-master"
-version = "1.0.0"
-description = "AI Scrum Master with BeeAI Platform and Jira MCP integration"
+version = "2.0.0"  # Updated to match the reworked version
+description = "AI Scrum Master with BeeAI Framework and Jira MCP integration"
 authors = [
     {name = "Matfej", email = "matfej@example.com"}
 ]
 readme = "README.md"
 license = {text = "Apache-2.0"}
-requires-python = ">=3.11"
+requires-python = ">=3.11,<4.0"
 
 dependencies = [
-    "beeai-sdk>=0.1.0",
+    # BeeAI Framework - CRITICAL MISSING DEPENDENCY
+    "beeai-framework>=0.1.42",
+    
+    # BeeAI SDK - Updated to match template version
+    "beeai-sdk>=0.3.2",
+    
+    # MCP for Jira integration
     "mcp>=1.0.0",
-    "uvicorn>=0.24.0",
+    "mcp-atlassian>=0.1.0",  # MISSING - Required for Jira MCP integration
+    
+    # Core dependencies
+    "python-dotenv>=1.1.1",  # Updated version
+    "uvicorn>=0.30.0",        # Updated version
     "pydantic>=2.0.0",
-    "python-dotenv>=1.0.0",
-    "aiohttp>=3.8.0"
+    
+    # HTTP client (replacing aiohttp with httpx to match template)
+    "httpx>=0.28.1",
+    
+    # YAML support (useful for configuration)
+    "pyyaml>=6.0.2",
 ]
 
 [project.optional-dependencies]
@@ -25,8 +39,13 @@ dev = [
     "pytest-cov>=4.0.0",
     "black>=23.0.0",
     "isort>=5.12.0",
-    "mypy>=1.0.0"
+    "mypy>=1.0.0",
+    "ruff>=0.1.0",  # Added modern linter
 ]
+
+# Add script entry point like template
+[project.scripts]
+server = "beeai_agents.agent:run"
 
 [build-system]
 requires = ["hatchling"]
@@ -35,13 +54,18 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/beeai_agents"]
 
+# Updated to match template style
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
 [tool.black]
-line-length = 88
+line-length = 120  # Match ruff
 target-version = ['py311']
 
 [tool.isort]
 profile = "black"
-line_length = 88
+line_length = 120  # Match ruff and black
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
