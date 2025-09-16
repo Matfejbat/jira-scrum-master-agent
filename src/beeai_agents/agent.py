@@ -21,7 +21,9 @@ from beeai_framework.backend.message import UserMessage, AssistantMessage
 from beeai_framework.memory import UnconstrainedMemory
 from beeai_framework.tools import Tool
 from beeai_framework.tools.think import ThinkTool
+from beeai_framework.tools.types import ToolResult
 from dotenv import load_dotenv
+from pydantic import BaseModel, Field
 
 # BeeAI SDK imports
 from a2a.types import AgentSkill, Message
@@ -121,6 +123,15 @@ async def lifespan(app):
         except Exception as e:
             print(f"❌ Error cleaning up Jira MCP: {e}")
 
+# Pydantic models for Jira tool input schema
+class JiraToolInput(BaseModel):
+    """Input schema for JiraTool"""
+    action: str = Field(description="The Jira action to perform: get_sprint_info, get_velocity_data, get_blocked_issues, search_issues")
+    sprint_id: Optional[str] = Field(default=None, description="Sprint ID for sprint-specific actions")
+    board_id: Optional[str] = Field(default=None, description="Board ID for board-specific actions")
+    jql: Optional[str] = Field(default=None, description="JQL query for search actions")
+    fields: Optional[str] = Field(default=None, description="Comma-separated fields to return")
+
 # Custom Jira tool for BeeAI Framework
 class JiraTool(Tool):
     """Jira integration tool using MCP"""
@@ -128,7 +139,29 @@ class JiraTool(Tool):
     name = "jira"
     description = "Access Jira data for sprint analysis, velocity tracking, standup reports, and impediment management"
     
-    async def __call__(self, action: str, **kwargs) -> str:
+    @property
+    def input_schema(self) -> BaseModel:
+        """Return the input schema for this tool"""
+        return JiraToolInput
+    
+    def _create_emitter(self):
+        """Create emitter for tool execution"""
+        # For simple tools, we can return None or a basic emitter
+        return None
+    
+    async def _run(self, action: str, sprint_id: Optional[str] = None, board_id: Optional[str] = None, 
+                   jql: Optional[str] = None, fields: Optional[str] = None) -> ToolResult:
+        """Execute Jira actions through MCP"""
+        try:
+            result_text = await self._execute_jira_action(action, sprint_id, board_id, jql, fields)
+            return ToolResult(output=result_text, success=True)
+        except Exception as e:
+            error_msg = f"❌ Error executing Jira action '{action}': {str(e)}"
+            return ToolResult(output=error_msg, success=False)
+    
+    async def _execute_jira_action(self, action: str, sprint_id: Optional[str] = None, 
+                                 board_id: Optional[str] = None, jql: Optional[str] = None, 
+                                 fields: Optional[str] = None) -> str:
         """Execute Jira actions through MCP"""
         if not jira_mcp_client:
             return "❌ Jira MCP client not initialized. Please check your Jira credentials and ensure mcp-atlassian is installed: uvx install mcp-atlassian"
@@ -136,8 +169,7 @@ class JiraTool(Tool):
         try:
             # Map common actions to MCP tool calls
             if action == "get_sprint_info":
-                sprint_id = kwargs.get("sprint_id", "active")
-                if sprint_id == "active":
+                if not sprint_id or sprint_id == "active":
                     # Get active sprint
                     result = await jira_mcp_client.call_tool("mcp-atlassian:jira_search", {
                         "jql": "sprint in openSprints()",
@@ -149,7 +181,7 @@ class JiraTool(Tool):
                     })
             
             elif action == "get_velocity_data":
-                board_id = kwargs.get("board_id", os.getenv("JIRA_BOARD_ID", "1"))
+                board_id = board_id or os.getenv("JIRA_BOARD_ID", "1")
                 result = await jira_mcp_client.call_tool("mcp-atlassian:jira_get_sprints_from_board", {
                     "board_id": board_id,
                     "state": "closed"
@@ -162,11 +194,11 @@ class JiraTool(Tool):
                 })
             
             elif action == "search_issues":
-                jql = kwargs.get("jql", "")
-                fields = kwargs.get("fields", "summary,status,assignee,priority")
+                search_jql = jql or ""
+                search_fields = fields or "summary,status,assignee,priority"
                 result = await jira_mcp_client.call_tool("mcp-atlassian:jira_search", {
-                    "jql": jql,
-                    "fields": fields
+                    "jql": search_jql,
+                    "fields": search_fields
                 })
             
             else:
