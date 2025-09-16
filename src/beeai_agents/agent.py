@@ -71,7 +71,7 @@ def get_memory(context: SDKRunContext) -> UnconstrainedMemory:
     return memories.setdefault(context_id, UnconstrainedMemory())
 
 async def initialize_mcp_client():
-    """Initialize MCP client for Jira integration"""
+    """Initialize MCP client for Jira integration - FIXED VERSION"""
     global jira_mcp_client, _mcp_initialized, _mcp_context_manager
     
     if _mcp_initialized:
@@ -92,48 +92,32 @@ async def initialize_mcp_client():
         print(f"📝 JIRA_USERNAME: {jira_username}")
         print(f"📝 JIRA_TOKEN: {'*' * len(jira_token) if jira_token else 'Not set'}")
 
-        # Try modern MCP approach first
-        try:
-            server_params = StdioServerParameters(
-                command="uvx",
-                args=[
-                    "mcp-atlassian",
-                    f"--jira-url={jira_url}",
-                    f"--jira-username={jira_username}",
-                    f"--jira-token={jira_token}",
-                ],
-            )
-        except Exception:
-            # Fallback for different MCP API
-            server_params = {
-                "command": "uvx",
-                "args": [
-                    "mcp-atlassian",
-                    f"--jira-url={jira_url}",
-                    f"--jira-username={jira_username}",
-                    f"--jira-token={jira_token}",
-                ],
+        # Create server parameters - mcp-atlassian uses environment variables, not CLI args
+        server_params = StdioServerParameters(
+            command="uvx",
+            args=["mcp-atlassian"],
+            env={
+                "JIRA_URL": jira_url,
+                "JIRA_USERNAME": jira_username, 
+                "JIRA_TOKEN": jira_token,
+                "JIRA_PROJECTS_FILTER": os.getenv("JIRA_PROJECT_KEY", ""),
             }
+        )
 
         print("🔗 Connecting to MCP server...")
         
-        # The stdio_client returns an async context manager, not a client directly
+        # FIXED: Proper MCP client creation
+        # stdio_client returns context manager for streams, not the client
         _mcp_context_manager = stdio_client(server_params)
-        connection_result = await _mcp_context_manager.__aenter__()
+        read_stream, write_stream = await _mcp_context_manager.__aenter__()
         
-        # Handle different return types from __aenter__
-        if isinstance(connection_result, tuple):
-            # If it's a tuple, the client is likely the first element
-            jira_mcp_client = connection_result[0]
-            print(f"🔧 Debug: Context manager returned tuple, extracted client: {type(jira_mcp_client)}")
-        else:
-            # If it's not a tuple, use it directly
-            jira_mcp_client = connection_result
-            print(f"🔧 Debug: Context manager returned: {type(jira_mcp_client)}")
+        # Create the actual ClientSession with the streams
+        jira_mcp_client = ClientSession(read_stream, write_stream)
+        await jira_mcp_client.initialize()
         
         print("✅ Connected to Jira MCP server successfully")
         print(f"🔧 Debug: Final client type: {type(jira_mcp_client)}")
-        print(f"🔧 Debug: Client methods: {[method for method in dir(jira_mcp_client) if not method.startswith('_')]}")
+        print(f"🔧 Debug: Client methods: {[method for method in dir(jira_mcp_client) if not method.startswith('_')]}") 
         
         _mcp_initialized = True
         return jira_mcp_client
@@ -141,7 +125,7 @@ async def initialize_mcp_client():
     except Exception as e:
         print(f"❌ Failed to connect to Jira MCP: {e}")
         print("💡 Debugging information:")
-        print(f"   - Make sure mcp-atlassian is installed: uvx install mcp-atlassian")
+        print(f"   - Make sure mcp-atlassian is installed: uvx install git+https://github.com/sooperset/mcp-atlassian.git")
         print(f"   - Check your .env file has correct JIRA_URL, JIRA_USERNAME, and JIRA_TOKEN")
         print(f"   - Verify Jira URL is accessible: {jira_url}")
         print(f"   - Ensure API token is valid and has proper permissions")
@@ -152,15 +136,22 @@ async def initialize_mcp_client():
         return None
 
 async def cleanup_mcp_client():
-    """Cleanup MCP client on shutdown"""
+    """Cleanup MCP client on shutdown - FIXED VERSION"""
     global jira_mcp_client, _mcp_context_manager
     
-    if _mcp_context_manager and jira_mcp_client:
+    if jira_mcp_client:
+        try:
+            await jira_mcp_client.close()
+            print("✅ Closed MCP ClientSession")
+        except Exception as e:
+            print(f"❌ Error closing ClientSession: {e}")
+    
+    if _mcp_context_manager:
         try:
             await _mcp_context_manager.__aexit__(None, None, None)
             print("✅ Disconnected from Jira MCP server")
         except Exception as e:
-            print(f"❌ Error cleaning up Jira MCP: {e}")
+            print(f"❌ Error cleaning up MCP context: {e}")
         finally:
             jira_mcp_client = None
             _mcp_context_manager = None
@@ -227,7 +218,7 @@ class JiraTool(Tool[JiraToolInput, ToolRunOptions, StringToolOutput]):
         global jira_mcp_client
         
         if not jira_mcp_client:
-            return "❌ Jira MCP client not initialized. Please check your Jira credentials and ensure mcp-atlassian is installed: uvx install mcp-atlassian"
+            return "❌ Jira MCP client not initialized. Please check your Jira credentials and ensure mcp-atlassian is installed: uvx install git+https://github.com/sooperset/mcp-atlassian.git"
         
         try:
             print(f"🔄 Executing Jira action: {action}")
