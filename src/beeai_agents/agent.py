@@ -59,6 +59,7 @@ load_dotenv()
 # Global MCP client for Jira
 jira_mcp_client: Optional[ClientSession] = None
 _mcp_initialized = False
+_mcp_context_manager = None
 
 # Server and memory management
 server = Server()
@@ -71,7 +72,7 @@ def get_memory(context: SDKRunContext) -> UnconstrainedMemory:
 
 async def initialize_mcp_client():
     """Initialize MCP client for Jira integration"""
-    global jira_mcp_client, _mcp_initialized
+    global jira_mcp_client, _mcp_initialized, _mcp_context_manager
     
     if _mcp_initialized:
         return jira_mcp_client
@@ -114,19 +115,41 @@ async def initialize_mcp_client():
                 ],
             }
 
-        jira_mcp_client = await stdio_client(server_params)
-        await jira_mcp_client.__aenter__()
+        print("🔗 Connecting to MCP server...")
+        
+        # The stdio_client returns an async context manager, not a client directly
+        _mcp_context_manager = stdio_client(server_params)
+        jira_mcp_client = await _mcp_context_manager.__aenter__()
+        
         print("✅ Connected to Jira MCP server successfully")
         _mcp_initialized = True
         return jira_mcp_client
 
     except Exception as e:
         print(f"❌ Failed to connect to Jira MCP: {e}")
-        print("💡 Make sure mcp-atlassian is installed: uvx install mcp-atlassian")
-        print(f"💡 Check your .env file has correct JIRA_URL, JIRA_USERNAME, and JIRA_TOKEN")
+        print("💡 Debugging information:")
+        print(f"   - Make sure mcp-atlassian is installed: uvx install mcp-atlassian")
+        print(f"   - Check your .env file has correct JIRA_URL, JIRA_USERNAME, and JIRA_TOKEN")
+        print(f"   - Verify Jira URL is accessible: {jira_url}")
+        print(f"   - Ensure API token is valid and has proper permissions")
+        print(f"   - Error details: {str(e)}")
         jira_mcp_client = None
         _mcp_initialized = True
         return None
+
+async def cleanup_mcp_client():
+    """Cleanup MCP client on shutdown"""
+    global jira_mcp_client, _mcp_context_manager
+    
+    if _mcp_context_manager and jira_mcp_client:
+        try:
+            await _mcp_context_manager.__aexit__(None, None, None)
+            print("✅ Disconnected from Jira MCP server")
+        except Exception as e:
+            print(f"❌ Error cleaning up Jira MCP: {e}")
+        finally:
+            jira_mcp_client = None
+            _mcp_context_manager = None
 
 # Pydantic models for Jira tool input schema
 class JiraToolInput(BaseModel):
@@ -180,6 +203,7 @@ class JiraTool(Tool[JiraToolInput, ToolRunOptions, StringToolOutput]):
             return StringToolOutput(result=result_text)
         except Exception as e:
             error_msg = f"❌ Error executing Jira action '{input.action}': {str(e)}"
+            print(f"🐛 Debug - {error_msg}")
             return StringToolOutput(result=error_msg)
     
     async def _execute_jira_action(self, action: str, sprint_id: Optional[str] = None, 
@@ -253,7 +277,9 @@ class JiraTool(Tool[JiraToolInput, ToolRunOptions, StringToolOutput]):
                 return f"❌ No content returned from Jira {action}"
                 
         except Exception as e:
+            error_details = traceback.format_exc()
             print(f"❌ Error in Jira action '{action}': {str(e)}")
+            print(f"🐛 Full error traceback:\n{error_details}")
             return f"❌ Error calling Jira {action}: {str(e)}"
     
     def _format_jira_response(self, action: str, data: Dict) -> str:
@@ -426,7 +452,7 @@ def is_casual_greeting(msg: str) -> bool:
     detail=AgentDetail(
         interaction_mode="multi-turn",
         user_greeting="Hi! I'm your AI Scrum Master. I can help with sprint analysis, velocity tracking, standup reports, and impediment management using live Jira data. What would you like to explore?",
-        version="2.0.2",
+        version="2.0.3",
         tools=[
             AgentDetailTool(
                 name="Sprint Analysis", 
