@@ -1,6 +1,6 @@
 [project]
 name = "beeai-jira-scrum-master"
-version = "2.0.0"  # Updated to match the reworked version
+version = "2.0.0"
 description = "AI Scrum Master with BeeAI Framework and Jira MCP integration"
 authors = [
     {name = "Matfej", email = "matfej@example.com"}
@@ -10,25 +10,26 @@ license = {text = "Apache-2.0"}
 requires-python = ">=3.11,<4.0"
 
 dependencies = [
-    # BeeAI Framework - CRITICAL MISSING DEPENDENCY
+    # BeeAI Framework
     "beeai-framework>=0.1.42",
     
-    # BeeAI SDK - Updated to match template version
+    # BeeAI SDK
     "beeai-sdk>=0.3.2",
     
-    # MCP for Jira integration
+    # MCP for Jira integration - FIXED DEPENDENCIES
     "mcp>=1.0.0",
-    "mcp-atlassian>=0.1.0",  # MISSING - Required for Jira MCP integration
+    # Note: mcp-atlassian needs to be installed via uvx, not pip
+    # Run: uvx install git+https://github.com/sooperset/mcp-atlassian.git
     
     # Core dependencies
-    "python-dotenv>=1.1.1",  # Updated version
-    "uvicorn>=0.30.0",        # Updated version
+    "python-dotenv>=1.1.1",
+    "uvicorn>=0.30.0",
     "pydantic>=2.0.0",
     
-    # HTTP client (replacing aiohttp with httpx to match template)
+    # HTTP client
     "httpx>=0.28.1",
     
-    # YAML support (useful for configuration)
+    # YAML support
     "pyyaml>=6.0.2",
 ]
 
@@ -40,10 +41,9 @@ dev = [
     "black>=23.0.0",
     "isort>=5.12.0",
     "mypy>=1.0.0",
-    "ruff>=0.1.0",  # Added modern linter
+    "ruff>=0.1.0",
 ]
 
-# Add script entry point like template
 [project.scripts]
 server = "beeai_agents.agent:run"
 
@@ -54,18 +54,17 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/beeai_agents"]
 
-# Updated to match template style
 [tool.ruff]
 line-length = 120
 target-version = "py311"
 
 [tool.black]
-line-length = 120  # Match ruff
+line-length = 120
 target-version = ['py311']
 
 [tool.isort]
 profile = "black"
-line_length = 120  # Match ruff and black
+line_length = 120
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
