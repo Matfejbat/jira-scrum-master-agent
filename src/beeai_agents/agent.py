@@ -58,6 +58,7 @@ load_dotenv()
 
 # Global MCP client for Jira
 jira_mcp_client: Optional[ClientSession] = None
+_mcp_initialized = False
 
 # Server and memory management
 server = Server()
@@ -68,20 +69,27 @@ def get_memory(context: SDKRunContext) -> UnconstrainedMemory:
     context_id = getattr(context, "context_id", getattr(context, "session_id", "default"))
     return memories.setdefault(context_id, UnconstrainedMemory())
 
-@asynccontextmanager
-async def lifespan(app):
-    """Application lifespan manager for MCP connections"""
-    global jira_mcp_client
-
+async def initialize_mcp_client():
+    """Initialize MCP client for Jira integration"""
+    global jira_mcp_client, _mcp_initialized
+    
+    if _mcp_initialized:
+        return jira_mcp_client
+        
     if not ClientSession or not StdioServerParameters or not stdio_client:
         print("❌ MCP not available - Jira integration disabled")
-        yield
-        return
+        _mcp_initialized = True
+        return None
 
     try:
         jira_url = os.getenv("JIRA_URL", "https://your-company.atlassian.net")
         jira_username = os.getenv("JIRA_USERNAME", "your.email@company.com")
         jira_token = os.getenv("JIRA_TOKEN", "your_api_token")
+
+        print(f"🔄 Initializing Jira MCP connection...")
+        print(f"📝 JIRA_URL: {jira_url}")
+        print(f"📝 JIRA_USERNAME: {jira_username}")
+        print(f"📝 JIRA_TOKEN: {'*' * len(jira_token) if jira_token else 'Not set'}")
 
         # Try modern MCP approach first
         try:
@@ -109,20 +117,16 @@ async def lifespan(app):
         jira_mcp_client = await stdio_client(server_params)
         await jira_mcp_client.__aenter__()
         print("✅ Connected to Jira MCP server successfully")
+        _mcp_initialized = True
+        return jira_mcp_client
 
     except Exception as e:
         print(f"❌ Failed to connect to Jira MCP: {e}")
         print("💡 Make sure mcp-atlassian is installed: uvx install mcp-atlassian")
+        print(f"💡 Check your .env file has correct JIRA_URL, JIRA_USERNAME, and JIRA_TOKEN")
         jira_mcp_client = None
-
-    yield
-
-    if jira_mcp_client:
-        try:
-            await jira_mcp_client.__aexit__(None, None, None)
-            print("✅ Disconnected from Jira MCP server")
-        except Exception as e:
-            print(f"❌ Error cleaning up Jira MCP: {e}")
+        _mcp_initialized = True
+        return None
 
 # Pydantic models for Jira tool input schema
 class JiraToolInput(BaseModel):
@@ -160,6 +164,11 @@ class JiraTool(Tool[JiraToolInput, ToolRunOptions, StringToolOutput]):
         context: RunContext
     ) -> StringToolOutput:
         """Execute Jira actions through MCP with proper BeeAI Framework signature"""
+        # Initialize MCP connection if not already done
+        global jira_mcp_client
+        if not jira_mcp_client and not _mcp_initialized:
+            jira_mcp_client = await initialize_mcp_client()
+        
         try:
             result_text = await self._execute_jira_action(
                 action=input.action,
@@ -177,31 +186,39 @@ class JiraTool(Tool[JiraToolInput, ToolRunOptions, StringToolOutput]):
                                  board_id: Optional[str] = None, jql: Optional[str] = None, 
                                  fields: Optional[str] = None) -> str:
         """Execute Jira actions through MCP"""
+        global jira_mcp_client
+        
         if not jira_mcp_client:
             return "❌ Jira MCP client not initialized. Please check your Jira credentials and ensure mcp-atlassian is installed: uvx install mcp-atlassian"
         
         try:
+            print(f"🔄 Executing Jira action: {action}")
+            
             # Map common actions to MCP tool calls
             if action == "get_sprint_info":
                 if not sprint_id or sprint_id == "active":
                     # Get active sprint
+                    print("📋 Searching for active sprint issues...")
                     result = await jira_mcp_client.call_tool("mcp-atlassian:jira_search", {
                         "jql": "sprint in openSprints()",
                         "fields": "sprint,summary,status,assignee,priority,customfield_10016"
                     })
                 else:
+                    print(f"📋 Getting issues for sprint {sprint_id}...")
                     result = await jira_mcp_client.call_tool("mcp-atlassian:jira_get_sprint_issues", {
                         "sprint_id": sprint_id
                     })
             
             elif action == "get_velocity_data":
                 board_id = board_id or os.getenv("JIRA_BOARD_ID", "1")
+                print(f"📊 Getting velocity data for board {board_id}...")
                 result = await jira_mcp_client.call_tool("mcp-atlassian:jira_get_sprints_from_board", {
                     "board_id": board_id,
                     "state": "closed"
                 })
             
             elif action == "get_blocked_issues":
+                print("🚫 Searching for blocked issues...")
                 result = await jira_mcp_client.call_tool("mcp-atlassian:jira_search", {
                     "jql": "sprint in openSprints() AND (status = 'Blocked' OR labels = 'blocked')",
                     "fields": "summary,assignee,status,priority,updated,labels"
@@ -210,13 +227,16 @@ class JiraTool(Tool[JiraToolInput, ToolRunOptions, StringToolOutput]):
             elif action == "search_issues":
                 search_jql = jql or ""
                 search_fields = fields or "summary,status,assignee,priority"
+                print(f"🔍 Searching issues with JQL: {search_jql}")
                 result = await jira_mcp_client.call_tool("mcp-atlassian:jira_search", {
                     "jql": search_jql,
                     "fields": search_fields
                 })
             
             else:
-                return f"❌ Unknown Jira action: {action}"
+                return f"❌ Unknown Jira action: {action}. Available actions: get_sprint_info, get_velocity_data, get_blocked_issues, search_issues"
+            
+            print(f"✅ Jira action '{action}' completed successfully")
             
             # Parse MCP result
             if result.content and len(result.content) > 0:
@@ -233,6 +253,7 @@ class JiraTool(Tool[JiraToolInput, ToolRunOptions, StringToolOutput]):
                 return f"❌ No content returned from Jira {action}"
                 
         except Exception as e:
+            print(f"❌ Error in Jira action '{action}': {str(e)}")
             return f"❌ Error calling Jira {action}: {str(e)}"
     
     def _format_jira_response(self, action: str, data: Dict) -> str:
@@ -405,7 +426,7 @@ def is_casual_greeting(msg: str) -> bool:
     detail=AgentDetail(
         interaction_mode="multi-turn",
         user_greeting="Hi! I'm your AI Scrum Master. I can help with sprint analysis, velocity tracking, standup reports, and impediment management using live Jira data. What would you like to explore?",
-        version="2.0.1",
+        version="2.0.2",
         tools=[
             AgentDetailTool(
                 name="Sprint Analysis", 
