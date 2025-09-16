@@ -119,9 +119,22 @@ async def initialize_mcp_client():
         
         # The stdio_client returns an async context manager, not a client directly
         _mcp_context_manager = stdio_client(server_params)
-        jira_mcp_client = await _mcp_context_manager.__aenter__()
+        connection_result = await _mcp_context_manager.__aenter__()
+        
+        # Handle different return types from __aenter__
+        if isinstance(connection_result, tuple):
+            # If it's a tuple, the client is likely the first element
+            jira_mcp_client = connection_result[0]
+            print(f"🔧 Debug: Context manager returned tuple, extracted client: {type(jira_mcp_client)}")
+        else:
+            # If it's not a tuple, use it directly
+            jira_mcp_client = connection_result
+            print(f"🔧 Debug: Context manager returned: {type(jira_mcp_client)}")
         
         print("✅ Connected to Jira MCP server successfully")
+        print(f"🔧 Debug: Final client type: {type(jira_mcp_client)}")
+        print(f"🔧 Debug: Client methods: {[method for method in dir(jira_mcp_client) if not method.startswith('_')]}")
+        
         _mcp_initialized = True
         return jira_mcp_client
 
@@ -133,6 +146,7 @@ async def initialize_mcp_client():
         print(f"   - Verify Jira URL is accessible: {jira_url}")
         print(f"   - Ensure API token is valid and has proper permissions")
         print(f"   - Error details: {str(e)}")
+        print(f"🐛 Full error traceback:\n{traceback.format_exc()}")
         jira_mcp_client = None
         _mcp_initialized = True
         return None
@@ -217,6 +231,7 @@ class JiraTool(Tool[JiraToolInput, ToolRunOptions, StringToolOutput]):
         
         try:
             print(f"🔄 Executing Jira action: {action}")
+            print(f"🔧 Debug: Client type before call: {type(jira_mcp_client)}")
             
             # Map common actions to MCP tool calls
             if action == "get_sprint_info":
@@ -452,7 +467,7 @@ def is_casual_greeting(msg: str) -> bool:
     detail=AgentDetail(
         interaction_mode="multi-turn",
         user_greeting="Hi! I'm your AI Scrum Master. I can help with sprint analysis, velocity tracking, standup reports, and impediment management using live Jira data. What would you like to explore?",
-        version="2.0.3",
+        version="2.0.4",
         tools=[
             AgentDetailTool(
                 name="Sprint Analysis", 
