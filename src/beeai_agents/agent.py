@@ -19,16 +19,18 @@ from beeai_framework.agents.experimental.requirements.conditional import Conditi
 from beeai_framework.agents.types import AgentExecutionConfig
 from beeai_framework.backend.message import UserMessage, AssistantMessage
 from beeai_framework.memory import UnconstrainedMemory
-from beeai_framework.tools import Tool
+from beeai_framework.tools import Tool, StringToolOutput, ToolRunOptions
 from beeai_framework.tools.think import ThinkTool
 from beeai_framework.tools.types import ToolResult
+from beeai_framework.context import RunContext
+from beeai_framework.emitter import Emitter
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 
 # BeeAI SDK imports
 from a2a.types import AgentSkill, Message
 from beeai_sdk.server import Server
-from beeai_sdk.server.context import RunContext
+from beeai_sdk.server.context import RunContext as SDKRunContext
 from beeai_sdk.a2a.extensions import (
     AgentDetail, AgentDetailTool, 
     CitationExtensionServer, CitationExtensionSpec,
@@ -62,7 +64,7 @@ jira_mcp_client: Optional[ClientSession] = None
 server = Server()
 memories = {}
 
-def get_memory(context: RunContext) -> UnconstrainedMemory:
+def get_memory(context: SDKRunContext) -> UnconstrainedMemory:
     """Get or create session memory"""
     context_id = getattr(context, "context_id", getattr(context, "session_id", "default"))
     return memories.setdefault(context_id, UnconstrainedMemory())
@@ -132,32 +134,45 @@ class JiraToolInput(BaseModel):
     jql: Optional[str] = Field(default=None, description="JQL query for search actions")
     fields: Optional[str] = Field(default=None, description="Comma-separated fields to return")
 
-# Custom Jira tool for BeeAI Framework
-class JiraTool(Tool):
-    """Jira integration tool using MCP"""
+# Custom Jira tool for BeeAI Framework - FIXED VERSION
+class JiraTool(Tool[JiraToolInput, ToolRunOptions, StringToolOutput]):
+    """Jira integration tool using MCP with proper BeeAI Framework implementation"""
     
+    # Class attributes required by BeeAI Framework
     name = "jira"
     description = "Access Jira data for sprint analysis, velocity tracking, standup reports, and impediment management"
+    input_schema = JiraToolInput
     
-    @property
-    def input_schema(self) -> BaseModel:
-        """Return the input schema for this tool"""
-        return JiraToolInput
+    def __init__(self, options: dict[str, Any] | None = None) -> None:
+        """Initialize the JiraTool"""
+        super().__init__(options)
     
-    def _create_emitter(self):
-        """Create emitter for tool execution"""
-        # For simple tools, we can return None or a basic emitter
-        return None
+    def _create_emitter(self) -> Emitter:
+        """Create emitter for tool execution tracking"""
+        return Emitter.root().child(
+            namespace=["tool", "jira", "scrum"],
+            creator=self,
+        )
     
-    async def _run(self, action: str, sprint_id: Optional[str] = None, board_id: Optional[str] = None, 
-                   jql: Optional[str] = None, fields: Optional[str] = None) -> ToolResult:
-        """Execute Jira actions through MCP"""
+    async def _run(
+        self, 
+        input: JiraToolInput, 
+        options: ToolRunOptions | None, 
+        context: RunContext
+    ) -> StringToolOutput:
+        """Execute Jira actions through MCP with proper BeeAI Framework signature"""
         try:
-            result_text = await self._execute_jira_action(action, sprint_id, board_id, jql, fields)
-            return ToolResult(output=result_text, success=True)
+            result_text = await self._execute_jira_action(
+                action=input.action,
+                sprint_id=input.sprint_id,
+                board_id=input.board_id,
+                jql=input.jql,
+                fields=input.fields
+            )
+            return StringToolOutput(result=result_text)
         except Exception as e:
-            error_msg = f"❌ Error executing Jira action '{action}': {str(e)}"
-            return ToolResult(output=error_msg, success=False)
+            error_msg = f"❌ Error executing Jira action '{input.action}': {str(e)}"
+            return StringToolOutput(result=error_msg)
     
     async def _execute_jira_action(self, action: str, sprint_id: Optional[str] = None, 
                                  board_id: Optional[str] = None, jql: Optional[str] = None, 
@@ -352,11 +367,11 @@ class JiraTool(Tool):
     def _generate_recommendations(self, progress: float) -> str:
         """Generate sprint recommendations"""
         if progress < 30:
-            return "• ⚠️ Sprint significantly behind - urgent scope review needed\n• Consider daily check-ins and impediment removal"
+            return "• ⚠️ Sprint significantly behind - urgent scope review needed\\n• Consider daily check-ins and impediment removal"
         elif progress < 60:
-            return "• 📊 Sprint progress moderate - monitor closely\n• Focus on completing in-progress items"
+            return "• 📊 Sprint progress moderate - monitor closely\\n• Focus on completing in-progress items"
         else:
-            return "• ✅ Sprint on track - maintain current momentum\n• Consider taking on additional scope if capacity allows"
+            return "• ✅ Sprint on track - maintain current momentum\\n• Consider taking on additional scope if capacity allows"
 
 def extract_citations(text: str) -> tuple[list[dict], str]:
     """Extract citations and clean text"""
@@ -391,7 +406,7 @@ def is_casual_greeting(msg: str) -> bool:
     detail=AgentDetail(
         interaction_mode="multi-turn",
         user_greeting="Hi! I'm your AI Scrum Master. I can help with sprint analysis, velocity tracking, standup reports, and impediment management using live Jira data. What would you like to explore?",
-        version="2.0.0",
+        version="2.0.1",
         tools=[
             AgentDetailTool(
                 name="Sprint Analysis", 
@@ -497,7 +512,7 @@ def is_casual_greeting(msg: str) -> bool:
 )
 async def jira_scrum_master(
     input: Message, 
-    context: RunContext,
+    context: SDKRunContext,
     citation: Annotated[CitationExtensionServer, CitationExtensionSpec()],
     trajectory: Annotated[TrajectoryExtensionServer, TrajectoryExtensionSpec()],
     llm: Annotated[
