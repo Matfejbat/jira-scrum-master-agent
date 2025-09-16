@@ -21,7 +21,6 @@ from beeai_framework.backend.message import UserMessage, AssistantMessage
 from beeai_framework.memory import UnconstrainedMemory
 from beeai_framework.tools import Tool, StringToolOutput, ToolRunOptions
 from beeai_framework.tools.think import ThinkTool
-from beeai_framework.tools.types import ToolResult
 from beeai_framework.context import RunContext
 from beeai_framework.emitter import Emitter
 from dotenv import load_dotenv
