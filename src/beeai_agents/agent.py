@@ -34,10 +34,22 @@ from beeai_sdk.a2a.extensions import (
     LLMServiceExtensionServer, LLMServiceExtensionSpec
 )
 
-# MCP imports for Jira integration
-from mcp import ClientSession
-from mcp.types import StdioServerParameters
-from mcp.client.stdio import stdio_client
+# MCP imports for Jira integration - Updated for current MCP version
+try:
+    from mcp import ClientSession
+    from mcp.client.stdio import StdioServerParameters, stdio_client
+except ImportError:
+    # Fallback for older MCP versions
+    try:
+        from mcp import ClientSession
+        from mcp.types import StdioServerParameters
+        from mcp.client.stdio import stdio_client
+    except ImportError:
+        # If still failing, create a simple wrapper
+        print("⚠️  Warning: MCP imports not available. Jira integration will be disabled.")
+        ClientSession = None
+        StdioServerParameters = None
+        stdio_client = None
 
 load_dotenv()
 
@@ -58,20 +70,38 @@ async def lifespan(app):
     """Application lifespan manager for MCP connections"""
     global jira_mcp_client
 
+    if not ClientSession or not StdioServerParameters or not stdio_client:
+        print("❌ MCP not available - Jira integration disabled")
+        yield
+        return
+
     try:
         jira_url = os.getenv("JIRA_URL", "https://your-company.atlassian.net")
         jira_username = os.getenv("JIRA_USERNAME", "your.email@company.com")
         jira_token = os.getenv("JIRA_TOKEN", "your_api_token")
 
-        server_params = StdioServerParameters(
-            command="uvx",
-            args=[
-                "mcp-atlassian",
-                f"--jira-url={jira_url}",
-                f"--jira-username={jira_username}",
-                f"--jira-token={jira_token}",
-            ],
-        )
+        # Try modern MCP approach first
+        try:
+            server_params = StdioServerParameters(
+                command="uvx",
+                args=[
+                    "mcp-atlassian",
+                    f"--jira-url={jira_url}",
+                    f"--jira-username={jira_username}",
+                    f"--jira-token={jira_token}",
+                ],
+            )
+        except Exception:
+            # Fallback for different MCP API
+            server_params = {
+                "command": "uvx",
+                "args": [
+                    "mcp-atlassian",
+                    f"--jira-url={jira_url}",
+                    f"--jira-username={jira_username}",
+                    f"--jira-token={jira_token}",
+                ],
+            }
 
         jira_mcp_client = await stdio_client(server_params)
         await jira_mcp_client.__aenter__()
@@ -79,6 +109,7 @@ async def lifespan(app):
 
     except Exception as e:
         print(f"❌ Failed to connect to Jira MCP: {e}")
+        print("💡 Make sure mcp-atlassian is installed: uvx install mcp-atlassian")
         jira_mcp_client = None
 
     yield
@@ -100,7 +131,7 @@ class JiraTool(Tool):
     async def __call__(self, action: str, **kwargs) -> str:
         """Execute Jira actions through MCP"""
         if not jira_mcp_client:
-            return "❌ Jira MCP client not initialized. Please check your Jira credentials."
+            return "❌ Jira MCP client not initialized. Please check your Jira credentials and ensure mcp-atlassian is installed: uvx install mcp-atlassian"
         
         try:
             # Map common actions to MCP tool calls
